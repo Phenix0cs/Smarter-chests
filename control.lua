@@ -10,7 +10,9 @@ require "math"
 require "util"
 
 local chest_open = false
+local chest_selected = false
 local open_entity = nil
+local selected_entity = nil
 local chest = nil
 local mining_chest = false
 
@@ -47,6 +49,10 @@ function built(event)
       
       global.storage_links[position(storage_ui)] =
          {requester = storage_ui, storage = storage, requester_slots = {}}
+      
+      -- Enable red and green wires to read both chests content   
+      storage_ui.connect_neighbour({wire=defines.circuitconnector.red, target_entity=storage})
+      storage_ui.connect_neighbour({wire=defines.circuitconnector.green, target_entity=storage})
    end
 end
 
@@ -108,6 +114,8 @@ function copy_all_from_storage(requester)
       local storage = global.storage_links[position(requester)].storage
       local request = nil
       
+      storage.get_inventory(defines.inventory.chest).setbar(0)
+      
       if storage.valid then
          local storage_items = storage.get_inventory(defines.inventory.chest).get_contents()
          storage_items = get_content_to_insert(storage_items)
@@ -138,6 +146,8 @@ function copy_from_storage_items_requested(requester)
       local transfert = {name="", count=0}
       local nb_transfered = 0
       
+      storage.get_inventory(defines.inventory.chest).setbar(0)
+      
       for slot = 1,8 do -- TODO Change if number of slots can be retrived
          request = global.storage_links[position(requester)].requester_slots[slot]
          if request ~= nil then
@@ -147,7 +157,9 @@ function copy_from_storage_items_requested(requester)
                transfert.count = math.min(nb_available,request.count)
                nb_transfered = requester.insert(request)
                transfert.count = nb_transfered
-               storage.remove_item(transfert)
+               if transfert.count > 0 then
+                  storage.remove_item(transfert)
+               end
             end
             -- Recover requester slot
             requester.set_request_slot(request,slot)
@@ -160,17 +172,20 @@ function copy_all_to_storage(requester)
    if requester.valid then
       local req_items = requester.get_inventory(defines.inventory.chest).get_contents()
       local remaining = 0
+      local pos = position(requester)
+      
+      local bar = requester.get_inventory(defines.inventory.chest).getbar()
+      global.storage_links[pos].storage.
+         get_inventory(defines.inventory.chest).setbar(bar)
       
       req_items = get_content_to_insert(req_items)
    
       for _,item in pairs(req_items) do
-         nb_tranfered = global.storage_links[
-         position(requester)].storage.insert(item)
+         nb_tranfered = global.storage_links[pos].storage.insert(item)
          if nb_tranfered > 0 then
             item.count = nb_tranfered
             requester.remove_item(item)
          end
-          
       end
       -- Save requester slots before disabling them
       for slot = 1,8 do -- TODO Change if number of slots can be retrived
@@ -193,26 +208,55 @@ function end_request_for_all_storages()
    end
 end
 
+function closed_chest()
+   copy_all_to_storage(chest)--end_request_for_all_storages()
+   -- Limit requests to maximum amount the chest can contain
+   local limit = 0
+   local amount_requested = 0
+   local pos = position(chest)
+   local requester_slot = nil
+   local bar = chest.get_inventory(defines.inventory.chest).getbar()
+   for slot = 1,8 do -- TODO Change if number of slots can be retrived
+      requester_slot = global.storage_links[pos].requester_slots[slot]
+      if requester_slot ~= nil then
+         amount_requested = requester_slot.count
+         limit = game.item_prototypes[requester_slot.name].stack_size * bar
+         global.storage_links[pos].requester_slots[slot].count = 
+            math.min(limit, amount_requested)
+      end
+   end
+end
+
 local sending_requests = false
 
 function tick(event)
    open_entity = game.player.opened
+   selected_entity = game.player.selected
    if open_entity ~= nil and
       open_entity.name == "logistic-chest-storage2-ui" and
    not chest_open then
       chest_open = true
       request_for_all_storages()
-      copy_all_from_storage(open_entity)
       chest = open_entity
-   elseif open_entity == nil and chest_open then
-      end_request_for_all_storages()
+      copy_all_from_storage(chest)
+   elseif selected_entity ~= nil and 
+   game.player.selected.name == "logistic-chest-storage2-ui" and 
+   not chest_selected then
+      -- Update UI
+      chest_selected = true
+      chest = game.player.selected
+      copy_all_from_storage(chest)
+   elseif open_entity == nil and game.player.selected == nil and 
+   (chest_selected or chest_open) and chest.valid then
+      closed_chest()
       chest_open = false
-   elseif game.tick % 100 == 1 and not chest_open and 
-   not sending_requests and not mining_chest then
+      chest_selected = false
+   elseif game.tick % 100 == 1 and not sending_requests and 
+   not (chest_selected or chest_open) and not mining_chest then
       request_for_all_storages()
       sending_requests = true
-   elseif game.tick % 100 == 2 and not chest_open and 
-   sending_requests and not mining_chest then
+   elseif game.tick % 100 == 2 and sending_requests and 
+   not (chest_selected or chest_open) and not mining_chest then
       end_request_for_all_storages()
       sending_requests = false
    end
