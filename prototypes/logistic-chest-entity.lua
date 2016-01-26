@@ -9,18 +9,18 @@ data:extend(
     items_to_place_this = "logistic-chest-storage2",
     collision_box = {{-0.0, -0.0}, {0.0, 0.0}},
     selection_box = {{-0.0, -0.0}, {0.0, 0.0}},
-	 fast_replaceable_group =  "container",
+	 fast_replaceable_group =  "",
     inventory_size = 48,
-    logistic_mode = "storage",
+    logistic_mode = "passive-provider",
     picture =
     {
-      filename = "__base__/graphics/entity/logistic-chest/logistic-chest-storage.png",
+      filename = "__smarter_chests__/graphics/logistic-chest-hybrid.png",
       priority = "extra-high",
       width = 38,
       height = 32,
       shift = {0.1, 0}
     },
-    circuit_wire_max_distance = 7.5,
+    circuit_wire_max_distance = 1,
   },
   {
     type = "logistic-container",
@@ -40,12 +40,13 @@ data:extend(
     vehicle_impact_sound = { filename = "__base__/sound/car-metal-impact.ogg", volume = 0.65 },
     picture =
     {
-      filename = "__base__/graphics/entity/logistic-chest/logistic-chest-storage.png",
+      filename = "__smarter_chests__/graphics/logistic-chest-hybrid.png",
       priority = "extra-high",
       width = 38,
       height = 32,
       shift = {0.1, 0.0}
     },
+    circuit_wire_max_distance = 7.5,
   },
 }
 )

@@ -3,7 +3,7 @@ data:extend(
   {
     type = "item",
     name = "logistic-chest-storage2",
-    icon = "__base__/graphics/icons/logistic-chest-storage.png",
+    icon = "__smarter_chests__/graphics/logistic-chest-hybrid.png",
     flags = {"hidden"},
     subgroup = "logistic-network",
     place_result = "logistic-chest-storage2-provider",
@@ -14,7 +14,7 @@ data:extend(
   {
     type = "item",
     name = "logistic-chest-storage2-ui",
-    icon = "__base__/graphics/icons/logistic-chest-storage.png",
+    icon = "__smarter_chests__/graphics/logistic-chest-hybrid.png",
     flags = {"goes-to-quickbar"},
     subgroup = "logistic-network",
     order = "b[storage]-c[logistic-chest-storage]-d",
