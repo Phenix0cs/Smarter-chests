@@ -11,7 +11,7 @@ data:extend(
     selection_box = {{-0.0, -0.0}, {0.0, 0.0}},
 	 fast_replaceable_group =  "",
     inventory_size = 48,
-    logistic_mode = "passive-provider",
+    logistic_mode = "storage",
     picture =
     {
       filename = "__smarter_chests__/graphics/logistic-chest-hybrid.png",
