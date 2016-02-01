@@ -114,17 +114,18 @@ function copy_all_from_storage(requester)
       local storage = global.storage_links[position(requester)].storage
       local request = nil
       
-      storage.get_inventory(defines.inventory.chest).setbar(0)
+      local nb_transfered = 0
+      local removed = 0
       
       if storage.valid then
          local storage_items = storage.get_inventory(defines.inventory.chest).get_contents()
          storage_items = get_content_to_insert(storage_items)
       
          for _,item in pairs(storage_items) do
-            nb_tranfered = requester.insert(item)
-            if nb_tranfered > 0 then
-               item.count = nb_tranfered
-               storage.remove_item(item)
+            nb_transfered = requester.insert(item)
+            if nb_transfered > 0 then
+               item.count = nb_transfered
+               removed = storage.remove_item(item)
             end
          end
          
@@ -136,6 +137,9 @@ function copy_all_from_storage(requester)
             end
          end
       end
+      
+      storage.get_inventory(defines.inventory.chest).setbar(0)
+      
    end
 end
 
@@ -144,9 +148,9 @@ function copy_from_storage_items_requested(requester)
       local storage = global.storage_links[position(requester)].storage
       local request = nil
       local transfert = {name="", count=0}
-      local nb_transfered = 0
       
-      storage.get_inventory(defines.inventory.chest).setbar(0)
+      local nb_transfered = 0
+      local removed = 0
       
       for slot = 1,8 do -- TODO Change if number of slots can be retrived
          request = global.storage_links[position(requester)].requester_slots[slot]
@@ -155,16 +159,18 @@ function copy_from_storage_items_requested(requester)
             if nb_available > 0 then
                transfert.name = request.name
                transfert.count = math.min(nb_available,request.count)
-               nb_transfered = requester.insert(request)
+               nb_transfered = requester.insert(transfert)
                transfert.count = nb_transfered
-               if transfert.count > 0 then
-                  storage.remove_item(transfert)
+               if nb_transfered > 0 then
+                  removed = storage.remove_item(transfert)
                end
             end
             -- Recover requester slot
             requester.set_request_slot(request,slot)
          end
       end
+      
+      storage.get_inventory(defines.inventory.chest).setbar(0)
    end
 end
 
@@ -176,40 +182,42 @@ function copy_all_to_storage(requester)
       
       local bar = requester.get_inventory(defines.inventory.chest).getbar()
       global.storage_links[pos].storage.
-         get_inventory(defines.inventory.chest).setbar(bar)
+         get_inventory(defines.inventory.chest).setbar(bar) 
+      
+      local nb_transfered = 0
+      local removed = 0
       
       req_items = get_content_to_insert(req_items)
-   
+      
       for _,item in pairs(req_items) do
-         nb_tranfered = global.storage_links[pos].storage.insert(item)
-         if nb_tranfered > 0 then
-            item.count = nb_tranfered
-            requester.remove_item(item)
+         nb_transfered = global.storage_links[pos].storage.insert(item)
+         if nb_transfered > 0 then
+            item.count = nb_transfered
+            removed = requester.remove_item(item)
          end
       end
-      -- Save requester slots before disabling them
+      -- Disable requester slots
       for slot = 1,8 do -- TODO Change if number of slots can be retrived
-         global.storage_links[position(requester)].
-            requester_slots[slot] = requester.get_request_slot(slot)
          requester.clear_request_slot(slot)
-      end  
+      end
+      
    end
 end
 
-function request_for_all_storages()
+function request_for_all()
    for _,link in pairs(global.storage_links) do
       copy_from_storage_items_requested(link.requester)
    end
 end
 
-function end_request_for_all_storages()
+function end_request_for_all()
    for _,link in pairs(global.storage_links) do
       copy_all_to_storage(link.requester)
    end
 end
 
 function closed_chest()
-   copy_all_to_storage(chest)--end_request_for_all_storages()
+   copy_all_to_storage(chest)--end_request_for_all()
    -- Limit requests to maximum amount the chest can contain
    local limit = 0
    local amount_requested = 0
@@ -228,37 +236,68 @@ function closed_chest()
 end
 
 local sending_requests = false
+local blueprint_tick_buffer = 0
 
 function tick(event)
    open_entity = game.player.opened
    selected_entity = game.player.selected
-   if open_entity ~= nil and
-      open_entity.name == "logistic-chest-storage2-ui" and
-   not chest_open then
-      chest_open = true
-      request_for_all_storages()
-      chest = open_entity
-      copy_all_from_storage(chest)
-   elseif selected_entity ~= nil and 
-   game.player.selected.name == "logistic-chest-storage2-ui" and 
-   not chest_selected then
-      -- Update UI
+   
+   if selected_entity ~= nil and 
+   selected_entity.name == "logistic-chest-storage2-ui" then
       chest_selected = true
-      chest = game.player.selected
-      copy_all_from_storage(chest)
-   elseif open_entity == nil and game.player.selected == nil and 
-   (chest_selected or chest_open) and chest.valid then
-      closed_chest()
-      chest_open = false
+      chest = selected_entity
+   else
       chest_selected = false
+   end
+   if open_entity ~= nil and
+      open_entity.name == "logistic-chest-storage2-ui" then
+      chest_open = true
+      chest = open_entity
+   elseif chest_open then
+      -- Save requester slots when chest is being closed
+      for slot = 1,8 do -- TODO Change if number of slots can be retrived
+         global.storage_links[position(chest)].
+            requester_slots[slot] = chest.get_request_slot(slot)
+      end
+      chest_open = false
+   else
+      chest_open = false
+   end
+   
+   if blueprint_tick_buffer > 0 and not sending_requests then
+      request_for_all()
+      sending_requests = true
+   elseif blueprint_tick_buffer > 0 and sending_requests then
+      blueprint_tick_buffer = blueprint_tick_buffer - 1
+   elseif (chest_open or chest_selected) and not sending_requests then
+      copy_all_from_storage(chest)
+      sending_requests = true
+   elseif not chest_open and not chest_selected and 
+   chest ~= nil and sending_requests and not mining_chest then
+      if chest.valid then
+         closed_chest()
+      else
+         end_request_for_all()
+      end
+      chest = nil
+      sending_requests = false
    elseif game.tick % 100 == 1 and not sending_requests and 
-   not (chest_selected or chest_open) and not mining_chest then
-      request_for_all_storages()
+   not mining_chest then
+      request_for_all()
       sending_requests = true
    elseif game.tick % 100 == 2 and sending_requests and 
-   not (chest_selected or chest_open) and not mining_chest then
-      end_request_for_all_storages()
+   not (chest_selected or chest_open) and not mining_chest and 
+   blueprint_tick_buffer <= 0 then
+      end_request_for_all()
       sending_requests = false
+   end
+   
+end
+
+function put_item(event)
+   if game.player.cursor_stack.valid_for_read and 
+   game.player.cursor_stack.name == "blueprint" then
+      blueprint_tick_buffer = 2
    end
 end
 
@@ -273,5 +312,6 @@ script.on_event({defines.events.on_canceled_deconstruction},
    canceled_deconstruction)
 script.on_event({defines.events.on_player_mined_item,
    defines.events.on_robot_mined}, mined_item)
-script.on_event({defines.events.on_entity_died},entity_died)
+script.on_event({defines.events.on_entity_died}, entity_died)
+script.on_event({defines.events.on_put_item}, put_item)
 
