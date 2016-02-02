@@ -53,6 +53,12 @@ function built(event)
       -- Enable red and green wires to read both chests content   
       storage_ui.connect_neighbour({wire=defines.circuitconnector.red, target_entity=storage})
       storage_ui.connect_neighbour({wire=defines.circuitconnector.green, target_entity=storage})
+      
+      -- Save requester slots (eg: blueprint requests)
+      for slot = 1,8 do -- TODO Change if number of slots can be retrived
+         global.storage_links[position(storage_ui)].
+            requester_slots[slot] = storage_ui.get_request_slot(slot)
+      end
    end
 end
 
@@ -60,7 +66,6 @@ function pre_mined(event)
    if event.entity.name == "logistic-chest-storage2-ui" then
       local position = position(event.entity)
       mining_chest = true
-      
       -- Recover items and requester slots
       copy_all_from_storage(event.entity)
    end
@@ -69,7 +74,6 @@ end
 function canceled_deconstruction(event)
    if event.entity.name == "logistic-chest-storage2-ui" then
       local position = position(event.entity)
-            
       copy_all_to_storage(event.entity)
       mining_chest = false
    end
@@ -128,7 +132,6 @@ function copy_all_from_storage(requester)
                removed = storage.remove_item(item)
             end
          end
-         
          -- Recover requester slots saved
          for slot = 1,8 do -- TODO Change if number of slots can be retrived
             request = global.storage_links[position(requester)].requester_slots[slot]
@@ -200,7 +203,6 @@ function copy_all_to_storage(requester)
       for slot = 1,8 do -- TODO Change if number of slots can be retrived
          requester.clear_request_slot(slot)
       end
-      
    end
 end
 
@@ -217,7 +219,7 @@ function end_request_for_all()
 end
 
 function closed_chest()
-   copy_all_to_storage(chest)--end_request_for_all()
+   copy_all_to_storage(chest)
    -- Limit requests to maximum amount the chest can contain
    local limit = 0
    local amount_requested = 0
@@ -246,6 +248,13 @@ function tick(event)
    selected_entity.name == "logistic-chest-storage2-ui" then
       chest_selected = true
       chest = selected_entity
+   elseif selected_entity == nil and chest_selected and chest.valid then
+      -- Save requester slots for copy/paste purpose
+      for slot = 1,8 do -- TODO Change if number of slots can be retrived
+         global.storage_links[position(chest)].
+            requester_slots[slot] = chest.get_request_slot(slot)
+      end
+      chest_selected = false
    else
       chest_selected = false
    end
@@ -282,7 +291,7 @@ function tick(event)
       chest = nil
       sending_requests = false
    elseif game.tick % 100 == 1 and not sending_requests and 
-   not mining_chest then
+   not (chest_selected or chest_open) and not mining_chest then
       request_for_all()
       sending_requests = true
    elseif game.tick % 100 == 2 and sending_requests and 
