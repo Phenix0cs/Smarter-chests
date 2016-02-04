@@ -8,6 +8,7 @@ Mention to SmartTrains mod by Choumiko for inspiration.
 require "defines"
 require "math"
 require "util"
+require "to_trash"
 
 local chest_open = false
 local chest_selected = false
@@ -300,7 +301,10 @@ function tick(event)
       end_request_for_all()
       sending_requests = false
    end
-   
+   if game.tick % 100 == 5 then
+      update_gui(game.player)
+      to_trash(game.player)
+   end 
 end
 
 function put_item(event)
